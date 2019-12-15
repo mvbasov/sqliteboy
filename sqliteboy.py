@@ -994,7 +994,10 @@ import struct
 
 import re
 
-import csv
+try:
+    import unicodecsv as csv
+except ImportError:
+    import csv
 
 try:
     import cStringIO
