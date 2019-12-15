@@ -490,6 +490,8 @@ Requirements
 
 - Optional: pyOpenSSL (SSL support)
 
+- Optional: unicodecsv (CSV Unicode support)
+
 
 Standalone Version
 ========================================================================
