@@ -246,11 +246,20 @@ REPORT_MESSAGE_LEN = 3
 REPORT_MESSAGE_VAR_RESULT = 'result'
 REPORT_HEADERS_CELL_LEN = 3
 REPORT_FOOTERS_CELL_LEN = 3
-REPORT_HEADERS_CELL_TYPES = [
+import sys
+if sys.version_info[0] > 2:
+    REPORT_HEADERS_CELL_TYPES = [
+                                (str, str, ),
+                                (str, str, int, ),
+                                (dict, ),
+                            ]
+else:
+    REPORT_HEADERS_CELL_TYPES = [
                                 (str, unicode, ),
                                 (str, unicode, int, ),
                                 (dict, ),
                             ]
+
 REPORT_FOOTERS_CELL_TYPES = REPORT_HEADERS_CELL_TYPES
 REPORT_CELL_TYPE_TEXT = ''
 REPORT_CELL_TYPE_FILES_IMAGE = 'files.image'
@@ -578,7 +587,7 @@ file_version.close()
 
 #
 content = open(r'$output', 'rb').read()
-content_md5 = md5(content).hexdigest()
+content_md5 = md5(content.encode('utf-8')).hexdigest()
 content_lines = [
             '%s  %s' %(content_md5, r'$output'),
         ]
@@ -956,8 +965,8 @@ for i in [CWDIR, SCURDIR]:
     if not i in sys.path:
         sys.path.append(i)
 
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 0)
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')
+sys.stderr = os.fdopen(sys.stderr.fileno(), 'w')
 
 import time
 import datetime
@@ -1002,9 +1011,15 @@ except ImportError:
 try:
     import cStringIO
 except ImportError:
-    import StringIO as cStringIO
+    try:
+        import StringIO as cStringIO
+    except ImportError:
+        from io import StringIO as cStringIO
 
-from HTMLParser import HTMLParser
+try:
+    from HTMLParser import HTMLParser
+except ImportError:
+    from html.parser import HTMLParser
 
 import calendar
 
@@ -1099,7 +1114,7 @@ try:
         CherryPyWSGIServer.ssl_certificate = ssl_cert
         CherryPyWSGIServer.ssl_private_key = ssl_pkey
 
-except Exception, e:
+except Exception as e:
     lsep = os.linesep
     emsg = '%s%s%s%s%s%s%s' %(
                 TITLE,
@@ -1238,11 +1253,11 @@ class MemSession(web.session.Store):
         return len(self.data.keys())
 
     def __contains__(self, key):
-        return self.data.has_key(key)
+        return key in self.data
 
     def __getitem__(self, key):
-        if not self.data.has_key(key):
-            raise KeyError, key
+        if key not in self.data:
+            raise KeyError( key )
         #
         v = self.data[key]
         v[0] = time.time()
@@ -1254,7 +1269,7 @@ class MemSession(web.session.Store):
         self.data[key] = v
 
     def __delitem__(self, key):
-        if self.data.has_key(key):
+        if key in self.data:
             del self.data[key]
 
     def cleanup(self, timeout):
@@ -1267,7 +1282,7 @@ class MemSession(web.session.Store):
                 kdel.append(k)
         #
         for k in kdel:
-            if self.data.has_key(k):
+            if k in self.data:
                 del self.data[k]
 
 
@@ -3869,7 +3884,7 @@ def pangsit(url_id, url, content, param, file_id,
         #
         for temp in user_interface:
             symbol = temp[0]
-            if not ret.has_key(symbol):
+            if symbol not in ret:
                 ret[symbol] = read_symbol(symbol, lines, width, height)
         #
         return ret
@@ -4407,12 +4422,12 @@ LANGS = {
     }
 
 def res(all, type, default=DEFAULT_LANG):
-    if not all.has_key(type):
+    if type not in all:
         return all[default]
     #
     ret = all[type]
     for k in all[default].keys():
-        if not ret.has_key(k):
+        if k not in ret:
             ret[k] = all[default][k]
     #
     return ret
@@ -4468,7 +4483,7 @@ def sqliteboy_len(s):
 SQLITE_UDF.append(('sqliteboy_len', 1, sqliteboy_len))
 
 def sqliteboy_md5(s):
-    return md5(str(s)).hexdigest()
+    return md5(str(s).encode('utf-8')).hexdigest()
 SQLITE_UDF.append(('sqliteboy_md5', 1, sqliteboy_md5))
 
 def sqliteboy_sha1(s):
@@ -4500,7 +4515,7 @@ def sqliteboy_b64decode(s):
 SQLITE_UDF.append(('sqliteboy_b64decode', 1, sqliteboy_b64decode))
 
 def sqliteboy_randrange(a, b):
-    vt = [type(1), type(1L)]
+    vt = [type(1), type(long(1))]
     if not type(a) in vt or not type(b) in vt: return 0
     if a == b: return a
     #
@@ -5634,9 +5649,9 @@ def canform(key, form, obj='form.code..'):
             fo = s_select('%s%s' %(obj, form))
             fo = fo[0]
             fe = json.loads(fo['e'])
-            if fe.has_key(FORM_KEY_SECURITY):
+            if FORM_KEY_SECURITY in fe:
                 fes = fe[FORM_KEY_SECURITY]
-                if fes.has_key(key):
+                if key in fes:
                     fesr = fes[key]
                     if fesr == FORM_ALL:
                         ret = True
@@ -5775,7 +5790,7 @@ def proc_account_check(handle):
                 a='user',
                 b='account',
                 d=DEFAULT_ADMIN_USER,
-                e=md5(DEFAULT_ADMIN_PASSWORD).hexdigest(),
+                e=md5(DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest(),
                 f='1'
             )
     #
@@ -6303,11 +6318,11 @@ def hasws(s):
 
 def prepsess():
     for i in sess_init:
-        if not sess.has_key(i):
+        if i not in sess:
             sess[i] = sess_init[i]
     #
     for t in tables():
-        if not sess.table.has_key(t):
+        if t not in sess.table:
             sess.table[t] = {}
     #
     for t in tables():
@@ -6315,7 +6330,7 @@ def prepsess():
             sess.table[t] = {}
     #
     for t in tables():
-        if not sess.table[t].has_key(SKT_ROWID):
+        if SKT_ROWID not in sess.table[t]:
             sess.table[t][SKT_ROWID] = []
 
 def isblob(s):
@@ -6397,12 +6412,12 @@ def reqform(form):
         fo = fo[0]
         fe = json.loads(fo['e'])
         for k in FORM_REQ:
-            if not fe.has_key(k):
+            if k not in fe:
                 return False
         fed = fe[FORM_KEY_DATA]
         for k in FORM_REQ_DATA:
             for d in fed:
-                if not d.has_key(k):
+                if k not in d:
                     return False
     except:
         return False
@@ -6794,12 +6809,12 @@ def reqreport(report):
         fo = fo[0]
         fe = json.loads(fo['e'])
         for k in REPORT_REQ:
-            if not fe.has_key(k):
+            if k not in fe:
                 return False
         fed = fe[REPORT_KEY_DATA]
         for k in REPORT_REQ_DATA:
             for d in fed:
-                if not d.has_key(k):
+                if k not in d:
                     return False
     except:
         return False
@@ -7073,7 +7088,7 @@ def s_init_default(db_object, session=True):
     if session:
         prepsess()
     db_object.insert(FORM_TBL, a='user', b='account', d=DEFAULT_ADMIN_USER,
-        e=md5(DEFAULT_ADMIN_PASSWORD).hexdigest(), f='1')
+        e=md5(DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest(), f='1')
 
 def s_init():
     return s_init_default(db)
@@ -7477,7 +7492,7 @@ def xparsescript(script):
         pass
     #
     for k in SCRIPT_REQ:
-        if not e.has_key(k):
+        if k not in e:
             return ret
     #
     ttypes = []
@@ -7549,7 +7564,7 @@ def xparsescript(script):
         #
         try:
             tnamel = tname.lower()
-            if not virtual_tables.has_key(tnamel):
+            if tnamel not in virtual_tables:
                 virtual_tables[tnamel] = []
             for n in ncols:
                 vt = {
@@ -7663,7 +7678,7 @@ def xparsescript(script):
     ret[SCRIPT_KEY_PROFILES] = tcode2
     #
     for k in e.keys():
-        if not ret.has_key(k):
+        if k not in ret:
             ret[k] = e.get(k)
     #
     return ret
@@ -7976,7 +7991,7 @@ def scmd_reset_admin_password(data, dbfilename, server_port):
             r = list(dbtest.select(FORM_TBL, where="a='user' and b='account' and d='admin'"))
             if r:
                 dbtest.update(FORM_TBL, 
-                    e=md5(DEFAULT_ADMIN_PASSWORD).hexdigest(), 
+                    e=md5(DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest(), 
                     where="a='user' and b='account' and d='admin'")            
                 ret = _['th_ok']
     except:
@@ -8128,7 +8143,7 @@ def u_print(inp, data):
     if not hasattr(inp, 'has_key'):
         return data
     #
-    if inp.has_key(PRINT_DATA_KEY):
+    if PRINT_DATA_KEY in inp:
         data[PRINT_DATA_KEY] = PRINT_DATA_VALUE
     #
     return data
@@ -8229,7 +8244,7 @@ def pr_all(execute_sql=True, usr=None):
         func = i[5]
         #
         dflt = i[3]
-        if g.has_key(name):
+        if name in g:
             dflt = g.get(name)
         dflt = func(dflt)
         #
@@ -8318,7 +8333,7 @@ def v_set(name, value):
     #
     u = user()
     #
-    if not sess.var.has_key(u):
+    if u not in sess.var:
         sess.var[u] = {}
     if not isinstance(sess.var.get(u), dict):
         sess.var[u] = {}
@@ -9123,7 +9138,7 @@ $ pr_get_style = pr_get('style')
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>$title(data['title'], '')</title>
 <meta charset='utf-8'>
-$if data.has_key(print_data_key):
+$if print_data_key in data:
     <style>
     $pr_get_style[0]
     </style>
@@ -9228,13 +9243,13 @@ $for i in menugen():
     $else:
         <td width='25%'>
         $if i[0] == '/table/action':
-            $if data.has_key('table'):
+            $if 'table' in data:
                 $i[3].set_value(data['table'])
         $elif i[0] == '/form/action':
-            $if data.has_key('form'):
+            $if 'form' in data:
                 $i[3].set_value(data['form'])
         $elif i[0] == '/report/action':
-            $if data.has_key('report'):
+            $if 'report' in data:
                 $i[3].set_value(data['report'])
         $if i[3]:
             $:i[3].render()
@@ -10152,7 +10167,7 @@ $elif data['command'] == 'report.run':
     </table>
     </form>
 $elif data['command'] == 'report.run.result':
-    $if data.has_key('headers'):
+    $if 'headers' in data:
         <br>
         <table>
         $for row in data['headers']:
@@ -10211,7 +10226,7 @@ $elif data['command'] == 'report.run.result':
             $ ctr = ctr + 1
         </table>
 
-    $if data.has_key('footers'):
+    $if 'footers' in data:
         <br>
         <table>
         $for row in data['footers']:
@@ -11109,7 +11124,7 @@ class favicon_ico:
 class table_action:
     def GET(self):
         input = web.input()
-        if not input.has_key('table'):
+        if 'table' not in input:
             dflt()
         #
         table = input.table.strip()
@@ -11133,14 +11148,14 @@ class table_action:
         prepsess()
         #
         for i in redir:
-            if input.has_key(i[0]):
+            if i[0] in input:
                 raise web.seeother(i[1])
         #
         dflt()
 
     def POST(self):
         input = web.input(select=[])
-        if not input.has_key('table'):
+        if 'table' not in input:
             dflt()
         #
         table = input.table.strip()
@@ -11161,16 +11176,16 @@ class table_action:
         except:
             dflt()
         #
-        if input.has_key('delete'):
+        if 'delete' in input:
             for i in select:
                 db.delete(table, where='%s=%s' %(ROWID, i))
             raise web.seeother(real_redir)
         #
-        elif input.has_key('edit'):
+        elif 'edit' in input:
             sess.table[table][SKT_ROWID] = select
             raise web.seeother('/table/row/%s' %(table))
         #
-        elif input.has_key('clear'):
+        elif 'clear' in input:
             sess.table[table][SKT_ROWID] = []
             raise web.seeother(real_redir)
         #
@@ -11255,7 +11270,7 @@ class table_save:
             defs = []
             for c in cols:
                 cn = c['name']
-                if input.has_key(cn):
+                if cn in input:
                     v = input[cn]
                     if c['type'] in BLOB_TYPE:
                         vr = db.db_module.Binary(v)
@@ -11280,7 +11295,7 @@ class table_save:
             try:
                 db.query(q, vars=vars)
                 sess.table[table][SKT_M_INSERT] = _['o_insert']
-            except Exception, e:
+            except Exception as e:
                 sess.table[table][SKT_M_INSERT] = '%s: %s' %(_['e_insert'], e.message)
             raise web.seeother('/table/row/%s?mode=insert' %(table))
         else:
@@ -11290,7 +11305,7 @@ class table_save:
             vars = {}
             for c in cols:
                 cn = c['name']
-                if input.has_key(cn):
+                if cn in input:
                     v = input[cn]
                     if c['type'] in BLOB_TYPE:
                         if len(v) < 1:
@@ -11310,7 +11325,7 @@ class table_save:
             try:
                 db.query(q, vars=vars)
                 sess.table[table][SKT_M_EDIT] = _['o_edit']
-            except Exception, e:
+            except Exception as e:
                 sess.table[table][SKT_M_EDIT] = '%s: %s' %(_['e_edit'], e.message)
             raise web.seeother('/table/row/%s#%s' %(table, rowid))
 
@@ -11543,7 +11558,7 @@ class table_column:
         for s in st:
             try:
                 db.query(s[0])#FIXME: security sql injection?
-            except Exception, e:
+            except Exception as e:
                 err.append('(%s) %s' %(s[1], e.message) )
         #
         if err:
@@ -11601,7 +11616,7 @@ class table_rename:
             new = name
             sess.table[new] = sess.table[table]
             del sess.table[table]
-        except Exception, e:
+        except Exception as e:
             msg = '%s: %s' %(_['e_rename'], e.message)
             new = table
         #
@@ -11647,7 +11662,7 @@ class table_drop:
         try:
             db.query(q)
             del sess.table[table]
-        except Exception, e:
+        except Exception as e:
             msg = '%s: %s' %(_['e_drop'], e.message)
             sess.table[table][SKT_M_DROP] = msg
             redir = '/table/drop?table=%s' %(table)
@@ -11671,7 +11686,11 @@ class table_export_csv:
         except:
             res = None
         #
-        fout = cStringIO.StringIO()
+        import sys
+        if sys.version_info[0] > 2:
+            fout = cStringIO()
+        else:
+            fout = cStringIO.StringIO()
         writer = csv.writer(fout)
         #
         header = [c['name'] for c in cols]
@@ -11747,7 +11766,7 @@ class query:
             multi = 1
             if isinstance(msg, (int, long, float)):
                 multi = 0
-        except Exception, e:
+        except Exception as e:
             msg = e.message
             err = _['th_error']
             multi = 0
@@ -11758,7 +11777,7 @@ class query:
         #
         prepsess()
         #
-        if web.input().has_key('query_export') and not qerr and multi:
+        if 'query_export' in web.input() and not qerr and multi:
             fout = cStringIO.StringIO()
             writer = csv.writer(fout)
             #
@@ -11911,7 +11930,7 @@ class table_create:
                 q = 'create table %s(%s)' %(table, ','.join(st))
             try:
                 db.query(q)#FIXME: security sql injection?
-            except Exception, e:
+            except Exception as e:
                 msg = '%s: %s' %(_['th_error'], e.message)
                 sess[SK_CREATE] = msg
                 raise web.seeother(url)
@@ -12051,7 +12070,7 @@ class login:
         #
         all = s_select('user.account')
         for a in all:
-            if a['d'] == user and a['e'] == md5(password).hexdigest():
+            if a['d'] == user and a['e'] == md5(password.encode('utf-8')).hexdigest():
                 sess.user = user
                 if a['f'] == '1':
                     sess.admin = 1
@@ -12113,7 +12132,7 @@ class password:
             raise web.seeother('/password')
         #
         me0 = me[0]
-        if me0['e'] == md5(old).hexdigest():
+        if me0['e'] == md5(old.encode('utf-8')).hexdigest():
             if password1 != password2:
                 sess[SK_PASSWORD] = _['e_password_mismatch']
             else:
@@ -12122,7 +12141,7 @@ class password:
                 else:
                     try:
                         db.update(FORM_TBL, where='a=$a and b=$b and d=$d',
-                            e = md5(password1).hexdigest(),
+                            e = md5(password1.encode('utf-8')).hexdigest(),
                             vars = {'a': 'user', 'b': 'account', 'd': sess.user}
                         )
                         sess[SK_PASSWORD] = _['o_password']
@@ -12195,7 +12214,7 @@ class admin_users:
             if (di in alld) and (not di in select) and ei:
                 try:
                     db.update(FORM_TBL, where='a=$a and b=$b and d=$d',
-                        e=md5(ei).hexdigest(),
+                        e=md5(ei.encode('utf-8')).hexdigest(),
                         vars = {'a': 'user', 'b': 'account', 'd': di}
                     )
                     m = (_['x_password_changed'], di)
@@ -12235,7 +12254,7 @@ class admin_users:
             if (di) and (not di in alld) and (not di in select) and (not di in protected) and (not hasws(di)) and (ei) and (fi in ['', '1']):
                 try:
                     db.insert(FORM_TBL, a='user', b='account', d=di,
-                        e=md5(ei).hexdigest(), f=fi
+                        e=md5(ei.encode('utf-8')).hexdigest(), f=fi
                     )
                     m = (_['x_added'], di)
                     msg.append(m)
@@ -12412,7 +12431,7 @@ class admin_backup:
 class form_action:
     def GET(self):
         input = web.input()
-        if not input.has_key('form'):
+        if 'form' not in input:
             dflt()
         #
         form = input.form.strip()
@@ -12423,7 +12442,7 @@ class form_action:
             ('create', '/form/edit?mode=' + MODE_INSERT),
         )
         for i in redir:
-            if input.has_key(i[0]):
+            if i[0] in input:
                 raise web.seeother(i[1])
         #
         dflt()
@@ -12562,7 +12581,7 @@ class form_run:
                 cv = ''
                 if cv_test and hasattr(cv_test, 'strip'):
                     cv = cv_test.strip()
-            except Exception, e:
+            except Exception as e:
                 sess[SKF_RUN] = [ [_['e_form_insert_general'], str(e)] ]
                 raise web.seeother('/form/run/%s' %(form))
             #
@@ -12577,7 +12596,7 @@ class form_run:
                                     vars = {FORM_ONSAVE_SQL_VALUE: cv}
                                 ).list()
                     cv = onsaver[0][FORM_ONSAVE_SQL_RET]
-                except Exception, e:
+                except Exception as e:
                     ecols.append(col)
                     errors.append( [ _['e_form_run_onsave'], label, str(e)] )
             #
@@ -12674,13 +12693,13 @@ class form_run:
             #
             if len(fsub_all2) < fsub_req:
                 fsub_all2 = []
-                raise Exception, '%s %s %s %s' %(
+                raise Exception('%s %s %s %s' %(
                         fsub_info,
                         fsub_req,
                         _['x_row'],
                         _['x_required']
-                        )
-        except Exception, e:
+                        ))
+        except Exception as e:
             errors.append( [ _['e_form_run_subform'], str(e)] )
         #
         ucontent = ''
@@ -12771,7 +12790,7 @@ class form_run:
                     message3 = fresult_res
                 #
                 sess[SKF_RUN] = [ [message3] ]
-            except Exception, e:
+            except Exception as e:
                 form_trans.rollback()
                 sess[SKF_RUN] = [ [_['e_form_insert_general'], str(e)] ]
                 raise web.seeother('/form/run/%s' %(form))
@@ -12878,7 +12897,7 @@ class form_edit:
                 code = json.loads(code)
                 code = json.dumps(code)
                 db.insert(FORM_TBL, a='form', b='code', d=name, e=ocode)
-            except Exception, e:
+            except Exception as e:
                 sess[SKF_CREATE] = [[_['e_form_edit_syntax'], str(e)]]
                 raise web.seeother('/form/edit?name=%s&code=%s&mode=%s' %(
                         name, urllib.quote(ocode), MODE_INSERT))
@@ -12923,7 +12942,7 @@ class form_edit:
                 code = json.dumps(code)
                 db.update(FORM_TBL, where='a=$a and b=$b and d=$d',
                     vars={'a': 'form', 'b': 'code', 'd': form}, d=name, e=ocode)
-            except Exception, e:
+            except Exception as e:
                 sess[SKF_CREATE] = [[_['e_form_edit_syntax'], str(e)]]
                 raise web.seeother('/form/edit?name=%s&code=%s&form=%s' %(
                         name, urllib.quote(ocode), form))
@@ -12937,7 +12956,7 @@ class form_edit:
 class report_action:
     def GET(self):
         input = web.input()
-        if not input.has_key('report'):
+        if 'report' not in input:
             dflt()
         #
         report = input.report.strip()
@@ -12948,7 +12967,7 @@ class report_action:
             ('create', '/report/edit?mode=' + MODE_INSERT),
         )
         for i in redir:
-            if input.has_key(i[0]):
+            if i[0] in input:
                 raise web.seeother(i[1])
         #
         dflt()
@@ -13051,7 +13070,7 @@ class report_edit:
                 code = json.loads(code)
                 code = json.dumps(code)
                 db.insert(FORM_TBL, a='report', b='code', d=name, e=ocode)
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_CREATE] = [[_['e_report_edit_syntax'], str(e)]]
                 raise web.seeother('/report/edit?name=%s&code=%s&mode=%s' %(
                         name, urllib.quote(ocode), MODE_INSERT))
@@ -13096,7 +13115,7 @@ class report_edit:
                 code = json.dumps(code)
                 db.update(FORM_TBL, where='a=$a and b=$b and d=$d',
                     vars={'a': 'report', 'b': 'code', 'd': report}, d=name, e=ocode)
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_CREATE] = [[_['e_report_edit_syntax'], str(e)]]
                 raise web.seeother('/report/edit?name=%s&code=%s&report=%s' %(
                         name, urllib.quote(ocode), report))
@@ -13195,9 +13214,9 @@ class report_run:
         report = input.hreport.strip()
         #
         rformat = REPORT_FORMAT_DEFAULT
-        if input.has_key(REPORT_FORMAT_CSV):
+        if REPORT_FORMAT_CSV in input:
             rformat = REPORT_FORMAT_CSV
-        elif input.has_key(REPORT_FORMAT_PDF):
+        elif REPORT_FORMAT_PDF in input:
             rformat = REPORT_FORMAT_PDF
         #
         if not report:
@@ -13262,7 +13281,7 @@ class report_run:
                 cv = ''
                 if cv_test and hasattr(cv_test, 'strip'):
                     cv = cv_test.strip()
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_RUN] = [ [_['e_report_select_general'], str(e)] ]
                 raise web.seeother('/report/run/%s' %(report))
             #
@@ -13346,7 +13365,7 @@ class report_run:
                                     )
                 else:
                     rreport = db.query(rquery, vars=ocols)
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_RUN] = [ [_['e_report_select_general'], str(e)] ]
                 raise web.seeother('/report/run/%s' %(report))
         #
@@ -13574,7 +13593,7 @@ class report_run:
         if rformat == REPORT_FORMAT_CSV:
             try:
                 rpt_csv_content = rpt_csv(data, content)
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_RUN] = [
                                     [_['th_error'], str(e)]
                                 ]
@@ -13589,7 +13608,7 @@ class report_run:
         if rformat == REPORT_FORMAT_PDF:
             try:
                 rpt_pdf_content = rpt_pdf(data, content, preport)
-            except Exception, e:
+            except Exception as e:
                 sess[SKR_RUN] = [
                                     [_['th_error'], str(e)]
                                 ]
@@ -14085,11 +14104,11 @@ class calculator:
         start()
         try:
             if len(q) > CALCULATOR_MAX_INPUT:
-                raise Exception, _['x_expression_too_long']
+                raise Exception( _['x_expression_too_long'] )
             #
             for e in q:
                 if not e in CALCULATOR_ALLOWED:
-                    raise Exception, _['x_expression_invalid']
+                    raise Exception( _['x_expression_invalid'] )
             #
             q2 = 'select $e'
             msg = db.query(q2,
@@ -14100,7 +14119,7 @@ class calculator:
             msg = msg[0].get(q, '')
             err = _['th_ok']
             error = 0
-        except Exception, e:
+        except Exception as e:
             msg = e.message
             err = _['th_error']
             error = 1
@@ -14164,7 +14183,7 @@ class interpreter:
             msg = out.getvalue()
             err = _['th_ok']
             error = 0
-        except Exception, e:
+        except Exception as e:
             msg = e.message
             err = _['th_error']
             error = 1
@@ -14228,20 +14247,20 @@ class admin_scripts:
             smax = r_system('scripts.max_size.')
             #
             if size > smax:
-                raise Exception, _['e_scripts_max_size']
+                raise Exception( _['e_scripts_max_size'] )
             #
             dcode = json.loads(code)
             #
             for k in SCRIPT_REQ:
-                if not dcode.has_key(k):
-                    raise Exception, _['e_scripts_syntax_or_required']
+                if k not in dcode:
+                    raise Exception( _['e_scripts_syntax_or_required'] )
             #
             g['size'] = size
             g['type'] = d_new.type
             g['type_options'] = d_new.type_options
             g['disposition'] = d_new.disposition
             g['disposition_options'] = d_new.disposition_options
-        except Exception, e:
+        except Exception as e:
             msg = [
                     [ fname, str(e) ],
                 ]
@@ -14574,7 +14593,7 @@ class admin_script:
                     'script': itest,
                 }
             )
-        except Exception, e:
+        except Exception as e:
             msg.append(
                         [
                             _['th_error'],
@@ -14706,7 +14725,7 @@ class table_copy:
         #
         ncols = []
         for d in tdcols.keys():
-            if sdcols.has_key(d):
+            if d in sdcols:
                 sd = sdcols.get(d)
                 td = tdcols.get(d)
                 if sd and td:
@@ -14725,7 +14744,7 @@ class table_copy:
         #
         try:
             if not ncols:
-                raise Exception, _['x_copy_columns_none']
+                raise Exception( _['x_copy_columns_none'] )
             #
             q = '''
                 insert into %s (%s) select %s from %s
@@ -14745,7 +14764,7 @@ class table_copy:
                         ]
             )
 
-        except Exception, e:
+        except Exception as e:
             msg.append(
                         [
                             _['e_copy'],
@@ -14812,7 +14831,7 @@ class table_empty:
                         str(r),
                     ]
                 ]
-        except Exception, e:
+        except Exception as e:
             msg = [
                     [
                         _['e_empty'],
@@ -14878,7 +14897,7 @@ class vacuum:
                         _['o_vacuum'],
                     ]
                 ]
-        except Exception, e:
+        except Exception as e:
             msg = [
                     [
                         _['th_error'],
@@ -15025,7 +15044,7 @@ class table_import_csv:
                 #
                 v = {}
                 for k in cols:
-                    if not i2.has_key(k):
+                    if k not in i2:
                         continue
                     v[k] = i2.get(k)
                 #
@@ -15033,7 +15052,7 @@ class table_import_csv:
                     continue
                 #
                 for k in cols:
-                    if not v.has_key(k):
+                    if k not in v:
                         v[k] = None
                 #
                 q = 'insert into %s(%s) values(%s)' %(
@@ -15054,7 +15073,7 @@ class table_import_csv:
                         str(counter),
                     ]
                 ]
-        except Exception, e:
+        except Exception as e:
             t.rollback()
             msg = [
                     [
@@ -15102,7 +15121,7 @@ class profile:
         for i in a:
             name = i[0]
             func = i[6]
-            if inp.has_key(name):
+            if name in inp:
                 value = inp.get(name)
                 try:
                     value = func(value)
@@ -15210,7 +15229,7 @@ class table_schema:
         q = 'create table %s %s' %(target, cols)
         try:
             r = db.query(q)
-        except Exception, e:
+        except Exception as e:
             sess[SK_SCHEMA] = [
                                 [
                                     _['th_error'],
@@ -15442,7 +15461,7 @@ def application_setup():
     app.notfound = notfound
     app.internalerror = internalerror
     #
-    web.config.session_parameters['cookie_name'] = '%s_%s' %(NAME, md5(dbfile).hexdigest())
+    web.config.session_parameters['cookie_name'] = '%s_%s' %(NAME, md5(dbfile.encode('utf-8')).hexdigest())
     #
     session_dir = os.path.join(SCURDIR, SESSION_DEFAULT_DIR)
     if os.access(session_dir, os.F_OK|os.R_OK|os.W_OK|os.X_OK):
@@ -15590,7 +15609,7 @@ if __name__ == '__main__':
     #
     try:
         web.httpserver.runsimple(app.wsgifunc(), (DEFAULT_ADDR, port))
-    except Exception, e:
+    except Exception as e:
         emsg = '%s: %s' %(_['th_error'], e)
         log('', stream=sys.stderr)
         log(emsg, stream=sys.stderr)
